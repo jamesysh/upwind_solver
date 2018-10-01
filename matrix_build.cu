@@ -3,7 +3,9 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <stdio.h>
-__global__ void computeRowandCol(const int*neighboursize, int*numRow, int*numCol,int* LPFOrder,const int numParticle){
+
+__global__ void computeRowandCol(const int*neighboursize, int*numRow, int*numCol,int* LPFOrder,const int numParticle)
+{
    int tid = threadIdx.x + blockIdx.x*blockDim.x;
    int offset = blockDim.x*gridDim.x;
    int numrow2nd = 36;
@@ -39,7 +41,6 @@ __global__ void computeRowandCol(const int*neighboursize, int*numRow, int*numCol
         tid = tid + offset;
 }
 
-    __syncthreads();
 }
 
 
@@ -87,9 +88,67 @@ __global__ void computeA2D(const int*neighbourList,const int*LPFOrder,const int*
     }
 }
 
+__global__ void computeB(const int* neighbourList, const int* numRow, const double* inData, const int maxNumNeighbourOne, const int numParticle,
+                        double** b)//output vector b
+
+{
+    int tid = threadIdx.x + blockIdx.x*blockDim.x;
+    int offset = blockDim.x*gridDim.x;
+    while(tid<numParticle){
+        for(int i=0;i<numRow[tid];i++){
+            int neiIndex = neighbourList[tid*maxNumNeighbourOne + i];
+            b[tid][i] = inData[neiIndex] - inData[tid];
+        }
+    
+        tid = tid + offset;
+    }
+}
 
 
+__global__ void computeLS(double**A,double**B,double**Tau, const int* numRow,const int* numCol ,const int numFluid, 
+                        double**Result)//output result
+{
 
+    int tid = threadIdx.x + blockIdx.x*blockDim.x;
+    int offset = blockDim.x*gridDim.x;
+    while(tid < numFluid){
+        int nrow = numRow[tid];
+        int ncol = numCol[tid];
+        for(int i=0;i<ncol;i++){
+//cant build v here cauz we need a fixed size in cuda kernal    no double v[ncol]
+            double v_times_b = 0.;
+            for(int j=0;j<nrow;j++){
+                if(j < i) continue;
+                if(j == i) v_times_b += 1*B[tid][j];
+                else v_times_b += A[tid][j+i*nrow]*B[tid][j];
+            }
+            v_times_b *= Tau[tid][i];
+
+            for(int j=0;j<nrow;j++){
+                if(j < i) continue;
+                if(j == i) B[tid][j] -= v_times_b;
+                else
+                B[tid][j] -= v_times_b*A[tid][j+i*nrow];
+            }
+
+        }
+
+//compute QTB complete
+
+//Backsubstitution
+        for(int i=ncol-1;i>=0;i--){
+            Result[tid][i] = B[tid][i]/A[tid][i*nrow+i];
+            for(int j=0;j<i;j++){
+                
+                B[tid][j] -= A[tid][j+i*nrow]*Result[tid][i];
+            }
+
+
+        }
+    tid += offset;
+
+    }
+}
 
 
 

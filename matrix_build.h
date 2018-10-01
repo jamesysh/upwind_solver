@@ -11,11 +11,15 @@ __global__ void computeRowandCol(const int*neighboursize, int*numRow, int*numCol
 __global__ void computeA2D(const int*neighbourList,const int*LPFOrder,const int* numRow,const double*x,const double*y,
         const int numParticle,const int maxNeighbourOneDir, double**A,double*dis);
 
+//build right hand side b
+__global__ void computeB(const int* neighbourList, const int* numRow, const double* inData, const int maxNumNeighbourOne, const int numParticle,
+                        double** b);//output
 
 
 
-
-
+//solver linear system
+__global__ void computeLS(double**A,double**B,double**Tau, const int* numRow,const int* numCol ,const int numFluid, 
+double**Result);//output
 
 
 
